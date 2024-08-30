@@ -92,6 +92,7 @@ else
     {
         try
         {
+            _error = null;
             _isChatting = true;
             await Task.Delay(1);
 
@@ -205,6 +206,7 @@ else
             await _hubConnection.DisposeAsync();
 
             _hubConnection = null;
+            _users.Clear();
             _isChatting = false;
         }
     }

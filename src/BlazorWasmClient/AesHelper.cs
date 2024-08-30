@@ -16,7 +16,7 @@ namespace BlazorWasmClient
         {
             if (encryptedMessage == null || encryptedMessage.Length == 0)
             {
-                throw new ArgumentException("Encrypted Message Required!", "encryptedMessage");
+                throw new ArgumentNullException("encryptedMessage");
             }
 
             using var cipherStream = new MemoryStream(encryptedMessage);

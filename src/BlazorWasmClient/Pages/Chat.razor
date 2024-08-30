@@ -11,203 +11,206 @@
 
 @if (!_isChatting)
 {
-    <p>
-        Enter username:
-    </p>
+	<p>
+		Enter username:
+	</p>
 
-    <input type="text" maxlength="32" @bind="@_username" />
-    <button type="button" class="btn btn-sm btn-primary ml-md-auto" @onclick="@ChatConnect"><span class="oi oi-chat" aria-hidden="true"></span> Chat!</button>
+	<input type="text" maxlength="32" @bind="@_username" />
+	<button type="button" class="btn btn-sm btn-primary ml-md-auto" @onclick="@ChatConnect"><span class="oi oi-chat" aria-hidden="true"></span> Chat!</button>
 }
 else
 {
-    <div class="alert alert-secondary mt-4" role="alert">
-        <span class="oi oi-person mr-2" aria-hidden="true"></span>
-        <span>Joined as <b>@_username</b></span>
-        <button type="button" class="btn btn-sm btn-warning ml-md-auto" @onclick="@DisconnectAsync">Disconnect</button>
-    </div>
+	<div class="alert alert-secondary mt-4" role="alert">
+		<span class="oi oi-person mr-2" aria-hidden="true"></span>
+		<span>Joined as <b>@_username</b></span>
+		<button type="button" class="btn btn-sm btn-warning ml-md-auto" @onclick="@DisconnectAsync">Disconnect</button>
+	</div>
 
-    @if (string.IsNullOrEmpty(_error) == false)
+	@if (string.IsNullOrEmpty(_error) == false)
 	{
 		<div class="alert alert-danger mt-4" role="alert">
 			<span class="oi oi-warning mr-2" aria-hidden="true"></span>
 			<span><b>@_error</b></span>
 		</div>
-    }
+	}
 
-    <div id="scrollbox">
-        @foreach (var user in _users)
-        {
-                <div>
-                    <dl>
-                        <dd>Username</dd>
-                        <dt>@user.Username</dt>
-						<dd>Public Key</dd>
-						<dt>@user.PublicKey.PrettyPrint()</dt>  
-                        @if (user.NegotiatedSharedSecret == null) {
-                        <button type="button" class="btn btn-sm btn-primary ml-md-auto" @onclick="@(() => NegotiateSecret(user))">Establish secure session</button>
-						} else {
-                            <dd>Shared Secret</dd>
-							<dt>@user.NegotiatedSharedSecret.PrettyPrint()</dt>
-                        <hr/>
-                        @foreach (var item in user.DirectMessages)
-                        {
-                                <div>
-                                <div><strong>@(item.Own ? _username : user.Username)</strong></div>
-                                    <div>@item.Body</div>
-                                </div>
-                        }
-
-                            <div>
-                                <textarea class="input-lg" placeholder="Direct encrypted message..." @bind="@_directMessage"></textarea><br/>
-                            <button type="button" class="btn btn-sm btn-primary ml-md-auto" @onclick="@(() => OutgoingDirectMessage(_directMessage, user))">Send</button>
-                            </div>
+	<div id="scrollbox">
+		@foreach (var user in _users)
+		{
+			<div>
+				<dl>
+					<dd>Username</dd>
+					<dt>@user.Username</dt>
+					<dd>Public Key</dd>
+					<dt>@user.PublicKey.PrettyPrint()</dt>
+					@if (user.NegotiatedSharedSecret == null)
+					{
+						<button type="button" class="btn btn-sm btn-primary ml-md-auto" @onclick="@(() => NegotiateSecret(user))">Establish secure session</button>
+					}
+					else
+					{
+						<dd>Shared Secret</dd>
+						<dt>@user.NegotiatedSharedSecret.PrettyPrint()</dt>
+						<hr />
+						@foreach (var item in user.DirectMessages)
+						{
+							<div>
+								<div><strong>@(item.Own ? _username : user.Username)</strong></div>
+								<div>@item.Body</div>
+							</div>
 						}
-                    </dl>
-                </div>
-        }
-    </div>
+
+						<div>
+							<textarea class="input-lg" placeholder="Direct encrypted message..." @bind="@_directMessage"></textarea><br />
+							<button type="button" class="btn btn-sm btn-primary ml-md-auto" @onclick="@(() => OutgoingDirectMessage(_directMessage, user))">Send</button>
+						</div>
+					}
+				</dl>
+			</div>
+		}
+	</div>
 }
 
 @code {
-    private bool _isChatting = false;
-    private string _username;
-    private string _directMessage;
-    private string _error;
+	private bool _isChatting = false;
+	private string _username;
+	private string _directMessage;
+	private string _error;
 
-    private List<User> _users = new List<User>();
-    private HubConnection _hubConnection;
+	private List<User> _users = new List<User>();
+	private HubConnection _hubConnection;
 
-    private SecureRandom _random = new SecureRandom();
-    private KyberPublicKeyParameters _kyberPublicKey;
-    private KyberPrivateKeyParameters _kyberPrivateKey;
+	private SecureRandom _random = new SecureRandom();
+	private KyberPublicKeyParameters _kyberPublicKey;
+	private KyberPrivateKeyParameters _kyberPrivateKey;
 
-    protected override void OnInitialized()
-    {
-        var kyberPair = GenerateKyberPair();
-        _kyberPublicKey = (KyberPublicKeyParameters)kyberPair.Public;
-        _kyberPrivateKey = (KyberPrivateKeyParameters)kyberPair.Private;
-    }
+	protected override void OnInitialized()
+	{
+		var kyberPair = GenerateKyberPair();
+		_kyberPublicKey = (KyberPublicKeyParameters)kyberPair.Public;
+		_kyberPrivateKey = (KyberPrivateKeyParameters)kyberPair.Private;
+	}
 
-    public async Task ChatConnect()
-    {
-        try
-        {
-            _error = null;
-            _isChatting = true;
-            await Task.Delay(1);
+	public async Task ChatConnect()
+	{
+		try
+		{
+			_error = null;
+			_isChatting = true;
+			await Task.Delay(1);
 
-            _hubConnection = new HubConnectionBuilder()
-                .WithUrl("https://localhost:7015/chat")
-                .Build();
+			_hubConnection = new HubConnectionBuilder()
+				.WithUrl("https://localhost:7015/chat")
+				.Build();
 
-            _hubConnection.On<string, byte[]>("UserJoined", UserJoined);
-            _hubConnection.On<ICollection<User>>("UserList", UserList);
-            _hubConnection.On<string, byte[]>("IncomingNegotiation", IncomingNegotation);
-            _hubConnection.On<string, byte[]>("IncomingDirectMessage", IncomingDirectMessage);
+			_hubConnection.On<string, byte[]>("UserJoined", UserJoined);
+			_hubConnection.On<ICollection<User>>("UserList", UserList);
+			_hubConnection.On<string, byte[]>("IncomingNegotiation", IncomingNegotation);
+			_hubConnection.On<string, byte[]>("IncomingDirectMessage", IncomingDirectMessage);
 
-            await _hubConnection.StartAsync();
-            await _hubConnection.SendAsync("Join", _username, _kyberPublicKey.GetEncoded());
-        }
-        catch (Exception e)
-        {
-            _error = $"ERROR: {e.Message}";
-            _isChatting = false;
-        }
-    }
+			await _hubConnection.StartAsync();
+			await _hubConnection.SendAsync("Join", _username, _kyberPublicKey.GetEncoded());
+		}
+		catch (Exception e)
+		{
+			_error = $"ERROR: {e.Message}";
+			_isChatting = false;
+		}
+	}
 
-    private AsymmetricCipherKeyPair GenerateKyberPair()
-    {
-        var keyGenParameters = new KyberKeyGenerationParameters(_random, KyberParameters.kyber768);
+	private AsymmetricCipherKeyPair GenerateKyberPair()
+	{
+		var keyGenParameters = new KyberKeyGenerationParameters(_random, KyberParameters.kyber768);
 
-        var kyberKeyPairGenerator = new KyberKeyPairGenerator();
-        kyberKeyPairGenerator.Init(keyGenParameters);
+		var kyberKeyPairGenerator = new KyberKeyPairGenerator();
+		kyberKeyPairGenerator.Init(keyGenParameters);
 
-        var keyPair = kyberKeyPairGenerator.GenerateKeyPair();
-        return keyPair;
-    }
+		var keyPair = kyberKeyPairGenerator.GenerateKeyPair();
+		return keyPair;
+	}
 
-    private async Task NegotiateSecret(User user)
-    {
-        var kyberKemGenerator = new KyberKemGenerator(_random);
+	private async Task NegotiateSecret(User user)
+	{
+		var kyberKemGenerator = new KyberKemGenerator(_random);
 
-        var kyberParameters = new KyberPublicKeyParameters(KyberParameters.kyber768, user.PublicKey);
-        var encapsulatedSecret = kyberKemGenerator.GenerateEncapsulated(kyberParameters);
-        var sharedSecret = encapsulatedSecret.GetSecret();
+		var kyberParameters = new KyberPublicKeyParameters(KyberParameters.kyber768, user.PublicKey);
+		var encapsulatedSecret = kyberKemGenerator.GenerateEncapsulated(kyberParameters);
+		var sharedSecret = encapsulatedSecret.GetSecret();
 
-        user.NegotiatedSharedSecret = sharedSecret;
+		user.NegotiatedSharedSecret = sharedSecret;
 
-        var cipherText = encapsulatedSecret.GetEncapsulation();
-        await _hubConnection.SendAsync("Negotiate", user.Username, cipherText);
+		var cipherText = encapsulatedSecret.GetEncapsulation();
+		await _hubConnection.SendAsync("Negotiate", user.Username, cipherText);
 
-        await InvokeAsync(StateHasChanged);
-    }
+		await InvokeAsync(StateHasChanged);
+	}
 
-    private void IncomingNegotation(string from, byte[] encapsulatedSecret)
-    {
-        var user = _users.FirstOrDefault(u => u.Username == from);
-        if (user == null)
-        {
-            Console.WriteLine($"ERROR: Received negotiation from unknown user '{from}'.");
-            return;
-        }
+	private void IncomingNegotation(string from, byte[] encapsulatedSecret)
+	{
+		var user = _users.FirstOrDefault(u => u.Username == from);
+		if (user == null)
+		{
+			Console.WriteLine($"ERROR: Received negotiation from unknown user '{from}'.");
+			return;
+		}
 
-        var kemExtractor = new KyberKemExtractor(_kyberPrivateKey);
-        var sharedSecret = kemExtractor.ExtractSecret(encapsulatedSecret);
+		var kemExtractor = new KyberKemExtractor(_kyberPrivateKey);
+		var sharedSecret = kemExtractor.ExtractSecret(encapsulatedSecret);
 
-        user.NegotiatedSharedSecret = sharedSecret;
+		user.NegotiatedSharedSecret = sharedSecret;
 
-        InvokeAsync(StateHasChanged);
-    }
+		InvokeAsync(StateHasChanged);
+	}
 
-    private async Task OutgoingDirectMessage(string message, User user)
-    {
-        if (_isChatting && !string.IsNullOrWhiteSpace(message) && user.NegotiatedSharedSecret != null)
-        {
-            var encryptedMessage = AesHelper.Encrypt(Encoding.UTF8.GetBytes(message), user.NegotiatedSharedSecret);
-            await _hubConnection.SendAsync("DirectMessage", user.Username, encryptedMessage);
-            user.DirectMessages.Add(new Message(message, true));
+	private async Task OutgoingDirectMessage(string message, User user)
+	{
+		if (_isChatting && !string.IsNullOrWhiteSpace(message) && user.NegotiatedSharedSecret != null)
+		{
+			var encryptedMessage = AesHelper.Encrypt(Encoding.UTF8.GetBytes(message), user.NegotiatedSharedSecret);
+			await _hubConnection.SendAsync("DirectMessage", user.Username, encryptedMessage);
+			user.DirectMessages.Add(new Message(message, true));
 
-            _directMessage = string.Empty;
-        }
-    }
+			_directMessage = string.Empty;
+		}
+	}
 
-    private void IncomingDirectMessage(string from, byte[] encryptedMessage)
-    {
-        var user = _users.FirstOrDefault(u => u.Username == from);
-        if (user == null)
-        {
-            Console.WriteLine($"ERROR: Received negotiation from unknown user '{from}'.");
-            return;
-        }
+	private void IncomingDirectMessage(string from, byte[] encryptedMessage)
+	{
+		var user = _users.FirstOrDefault(u => u.Username == from);
+		if (user == null)
+		{
+			Console.WriteLine($"ERROR: Received negotiation from unknown user '{from}'.");
+			return;
+		}
 
-        var decryptedMessage = AesHelper.Decrypt(encryptedMessage, user.NegotiatedSharedSecret);
-        user.DirectMessages.Add(new Message(Encoding.UTF8.GetString(decryptedMessage), false));
+		var decryptedMessage = AesHelper.Decrypt(encryptedMessage, user.NegotiatedSharedSecret);
+		user.DirectMessages.Add(new Message(Encoding.UTF8.GetString(decryptedMessage), false));
 
-        InvokeAsync(StateHasChanged);
-    }
+		InvokeAsync(StateHasChanged);
+	}
 
-    private void UserJoined(string username, byte[] publicKey)
-    {
-        _users.Add(new User { Username = username, PublicKey = publicKey });
-        InvokeAsync(StateHasChanged);
-    }
+	private void UserJoined(string username, byte[] publicKey)
+	{
+		_users.Add(new User { Username = username, PublicKey = publicKey });
+		InvokeAsync(StateHasChanged);
+	}
 
-    private void UserList(ICollection<User> users)
-    {
-        _users = users.Where(u => u.Username != _username).ToList();
-        InvokeAsync(StateHasChanged);
-    }
+	private void UserList(ICollection<User> users)
+	{
+		_users = users.Where(u => u.Username != _username).ToList();
+		InvokeAsync(StateHasChanged);
+	}
 
-    private async Task DisconnectAsync()
-    {
-        if (_isChatting)
-        {
-            await _hubConnection.StopAsync();
-            await _hubConnection.DisposeAsync();
+	private async Task DisconnectAsync()
+	{
+		if (_isChatting)
+		{
+			await _hubConnection.StopAsync();
+			await _hubConnection.DisposeAsync();
 
-            _hubConnection = null;
-            _users.Clear();
-            _isChatting = false;
-        }
-    }
+			_hubConnection = null;
+			_users.Clear();
+			_isChatting = false;
+		}
+	}
 }

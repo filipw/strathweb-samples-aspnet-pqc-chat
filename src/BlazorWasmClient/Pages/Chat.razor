@@ -106,7 +106,7 @@ else
 
             _hubConnection.On<string, byte[]>("UserJoined", UserJoined);
             _hubConnection.On<ICollection<User>>("UserList", UserList);
-            _hubConnection.On<string, byte[]>("IncomingNegotiation", IncomingNegotation);
+            _hubConnection.On<string, byte[]>("IncomingNegotiation", IncomingNegotiation);
             _hubConnection.On<string, byte[]>("IncomingDirectMessage", IncomingDirectMessage);
 
             await _hubConnection.StartAsync();
@@ -146,7 +146,7 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
-    private void IncomingNegotation(string from, byte[] cipherText)
+    private void IncomingNegotiation(string from, byte[] cipherText)
     {
         var user = _users.FirstOrDefault(u => u.Username == from);
         if (user == null)
